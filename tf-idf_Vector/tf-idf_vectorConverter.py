@@ -64,7 +64,7 @@ def construct_dictionary(dir_path):
             f.write("{:<6}{:>20}{:>6}\n".format(value["term_id"], key, str(value["df"])))
 
 def compute_tfIdf(tf, df, N):
-    idf = math.log(N/df)
+    idf = math.log(N/df, 10)
     return(round(tf*idf, 3))
 
 def doc_to_vector(document_file, dictionary_file, output_file, all_document_num):
@@ -90,11 +90,24 @@ def doc_to_vector(document_file, dictionary_file, output_file, all_document_num)
                 term_table[term]["id"] = int(dictionary[term]["id"])
             else:
                 term_table[term]["tf"] += 1
-        # print(sorted(term_table.items(), key = lambda x : x[1]["id"], reverse=False))
+
+        # compute unit vector for this document
+        tf_idf_list = []
+        id_list = []
+        mag_sum = 0
+        for entry in sorted(term_table.items(), key = lambda x : x[1]["id"], reverse=False):
+            tf_idf = compute_tfIdf(entry[1]["tf"], entry[1]["df"], all_document_num)
+            tf_idf_list.append(tf_idf)
+            mag_sum += math.pow(tf_idf, 2)
+            id_list.append(entry[1]["id"])
+        
+        mag_sum = math.sqrt(mag_sum)
+        unit_vector = [round(x/mag_sum, 3) for x in tf_idf_list]
+        
         with open(output_file, "w") as outputF:
             outputF.write("{} {}\n".format("t_index", "tf-idf"))
-            for entry in sorted(term_table.items(), key = lambda x : x[1]["id"], reverse=False):
-                outputF.write("{:>7} {:>6}\n".format(entry[1]["id"], compute_tfIdf(entry[1]["tf"], entry[1]["df"], all_document_num)))
+            for i in range(len(id_list)):
+                outputF.write("{:>7} {:>6}\n".format(id_list[i], unit_vector[i]))
 
 def dict_dot_product(dictX, dictY):
     result = 0
@@ -117,12 +130,24 @@ def cosine(docX, docY):
     dot_product = dict_dot_product(dictX, dictY)
     lengthX = math.sqrt(dict_dot_product(dictX, dictX))
     lengthY = math.sqrt(dict_dot_product(dictY, dictY))
-
     return dot_product/(lengthX*lengthY)
 
 
 if __name__ == "__main__":
-    construct_dictionary(os.path.join(os.path.dirname(__file__), "IRTM"))
-    doc_to_vector("./IRTM/1.txt", "dictionary.txt", "1.txt", 1095)
-    doc_to_vector("./IRTM/2.txt", "dictionary.txt", "2.txt", 1095)
-    print(cosine('1.txt', '2.txt'))
+
+    document_dir = os.path.join(os.path.dirname(__file__), "IRTM")
+    output_dir = os.path.join(os.path.dirname(__file__), "docVector")
+    documents_list = os.listdir(document_dir)
+    print("Total documents: {}".format(len(documents_list)))
+
+    construct_dictionary(document_dir)
+
+    finished_num = 0
+    for doc in documents_list:
+        doc_to_vector(os.path.join(document_dir, doc), "dictionary.txt", os.path.join(output_dir, doc), len(documents_list))
+        finished_num += 1
+        print("Finish {}".format(finished_num), end='\r')
+
+    print("Cosine Simularity between 1.txt and 2.txt", cosine(os.path.join(output_dir,'1.txt'), os.path.join(output_dir, '2.txt')))
+
+    
