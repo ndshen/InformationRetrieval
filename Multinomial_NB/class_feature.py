@@ -3,6 +3,7 @@ import re
 from collections import defaultdict
 import numpy as np
 import pandas as pd
+import math
 from openpyxl import load_workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 from itertools import islice
@@ -18,6 +19,7 @@ document_dir = os.path.join(base_dir, "IRTM")
 training_input = os.path.join(os.path.dirname(__file__), "training.txt")
 tf_df_file = os.path.join(os.path.dirname(__file__),'tf_df.xlsx')
 feature_file =  os.path.join(os.path.dirname(__file__),'class_feature.xlsx')
+dictionary_file = os.path.join(os.path.dirname(__file__),'dictionary.xlsx')
 
 def fetch_document(id:int) -> str:
     with open(os.path.join(document_dir, "{}.txt".format(id)), "r") as f:
@@ -112,10 +114,10 @@ def calculate_tf_df(training_classes):
     output_file.save()
     print(main_term_table)
 
-def load_tf_df_file() -> tuple:
+def load_tf_df_file(inputFile = tf_df_file) -> tuple:
     """load the tf_df.xlsx file into a main dataframe(all) and a list of class dataframes"""
-    wb = load_workbook(filename=tf_df_file)
-    term_df_for_classes = []
+    wb = load_workbook(filename=inputFile)
+    term_df_for_classes = dict()
     sheets = wb.sheetnames
     for sheet in sheets:
         data = wb[sheet].values
@@ -127,24 +129,75 @@ def load_tf_df_file() -> tuple:
         if sheet == "all":
             main_term_df = df
         else:
-            term_df_for_classes.append(df)
+            term_df_for_classes[sheet] = df
 
     return (main_term_df, term_df_for_classes)
 
-def feature_select(all_df, classes_df:list, size=500, method="df_chisq"):
+def feature_select(all_df, classes_df:dict, classes_docs:dict, size=500, method="df_chisq", outputFile=feature_file):
     
-    def df_chisq(class_df):
-        return("test")
+    output_file = pd.ExcelWriter(outputFile)
+    total_d = sum((len(docs) for c, docs in classes_docs.items()))
+    
+    def df_chisq(c:str, df):
 
-    for class_df in classes_df:
-        class_df_merged = pd.merge(class_df, all_df, left_index=True, right_index=True, suffixes=['_class', '_all'], how='left')
+        class_d = len(classes_docs[c])
+        df["expected_df"] = round(df["df_all"] * (class_d/total_d), 3)
+        df["df_chisq"] = round(pow(df["df_class"] - df["expected_df"], 2)/df["expected_df"], 3)
+        df['df_chisq_pn'] = df.apply(lambda row: row["df_chisq"] * -1 if row["expected_df"] > row["df_class"] else row["df_chisq"], axis=1)
+        df['df_chisq_x'] = df.apply(lambda row:math.log2(row["df_class"]) * row["df_chisq_pn"], axis=1) #custome adjust on df_chisq value
+        df = df.sort_values(by=["df_chisq_x"], ascending=False)
+        return(df.head(size))
+
+    for c, df in classes_df.items():
+        class_df_merged = pd.merge(df, all_df, left_index=True, right_index=True, suffixes=['_class', '_all'], how='left')
         _locals = locals()
-        exec("new_class_df = {}(class_df_merged)".format(method), globals(), _locals)
-        print(_locals["new_class_df"])
-        break
+        exec("new_class_df = {}(\"{}\", class_df_merged)".format(method, c), globals(), _locals) #allow different feature selection method to be implemented by argument
+        _locals["new_class_df"].to_excel(output_file, c)
+    
+    output_file.save()
+
+def load_class_feature_file(inputFile = feature_file) -> dict:
+    """load the class_feature.xlsx into a the input format of construct_dictionary"""
+    wb = load_workbook(filename=inputFile)
+    term_df_for_classes = dict()
+    sheets = wb.sheetnames
+    for sheet in sheets:
+        data = wb[sheet].values
+        cols = next(data)[1:]
+        data = list(data)
+        idx = [r[0] for r in data]
+        data = (islice(r, 1, None) for r in data)
+        df = pd.DataFrame(data, index=idx, columns=cols)
+        term_df_for_classes[sheet] = df
+
+    return (term_df_for_classes)    
+
+def construct_dictionary(classes_df:dict, classes_docs:dict, size=500, outputFile=dictionary_file):
+    """
+    Consturct a dictionary from class feature by choosing only 500 terms,
+    and calculate the probability for each term in each dictionary.
+    """
+    output_file = pd.ExcelWriter(outputFile)
+    def select_terms_strict():
+        """select top 500 df_chisq_x terms, cause the dictionary size to be strict 500."""
+        whole_pd = pd.concat([df for c, df in classes_df.items()], axis=0)
+        whole_pd = whole_pd.sort_values(by=["df_chisq_x"], ascending=False)
+        whole_pd = whole_pd[~whole_pd.index.duplicated(keep='first')] #delete duplicate terms, and keep the highest df_chisq_x value
+        dictionary = whole_pd[["tf_all", "df_all"]].head(size)
+        return(dictionary)
+    
+    dictionary = select_terms_strict()
+    for c, df in classes_df.items():
+        c_dict_merged = pd.merge(dictionary, df[["tf_class", "df_class"]], left_index=True, right_index=True, how="left")
+        c_dict_merged = c_dict_merged.fillna(0).sort_values(by=["tf_class"], ascending=False)
+        tf_sum = c_dict_merged["tf_class"].sum()
+        c_dict_merged["prob"] = c_dict_merged.apply(lambda row:(row["tf_class"]+1)/(tf_sum+size), axis=1) #add-one smoothing
+        c_dict_merged.to_excel(output_file, c)
+    
+    output_file.save()
+
 if __name__ == "__main__":
-    # calculate_tf_df(get_training_classes())
-    main_term_df, term_df_for_classes = load_tf_df_file()
-    feature_select(main_term_df, term_df_for_classes)
-    # print(main_term_df.index)
-    # print(len(term_df_for_classes))
+    calculate_tf_df(get_training_classes())
+    all_df, classes_df = load_tf_df_file()
+    feature_select(all_df, classes_df, get_training_classes())
+    construct_dictionary(load_class_feature_file(), get_training_classes())
