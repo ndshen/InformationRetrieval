@@ -81,5 +81,3 @@ if __name__ == "__main__":
     result_pd = pd.DataFrame(list(result_dict.items()), columns=["Id", "Value"])
     result_pd = result_pd.sort_values(by=["Id"], ascending=True)
     result_pd.to_csv(result_file, index=0)
-    
-    # test_result()
