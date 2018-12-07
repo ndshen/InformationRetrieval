@@ -62,10 +62,10 @@ def extract_terms_lemma(text_file):
     
     return(final_token_list)
 
-def get_training_classes() -> dict:
+def get_training_classes(inputFile=training_input) -> dict:
     """Convert the training data into dictionary type"""
     training_classes = dict()
-    with open(training_input, "r") as f:
+    with open(inputFile, "r") as f:
         lines = f.read().split('\n')
         for line in lines:
             entry = line.split(' ')
