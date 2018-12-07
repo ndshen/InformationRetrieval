@@ -21,7 +21,7 @@ tf_df_file = os.path.join(os.path.dirname(__file__),'tf_df.xlsx')
 feature_file =  os.path.join(os.path.dirname(__file__),'class_feature.xlsx')
 dictionary_file = os.path.join(os.path.dirname(__file__),'dictionary.xlsx')
 
-def fetch_document(id:int) -> str:
+def fetch_document(id) -> str:
     with open(os.path.join(document_dir, "{}.txt".format(id)), "r") as f:
         text = f.read()
     return(text)
