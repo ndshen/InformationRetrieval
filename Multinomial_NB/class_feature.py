@@ -155,6 +155,7 @@ def feature_select(all_df, classes_df:dict, classes_docs:dict, size=500, method=
         df['tf_chisq_pn'] = df.apply(lambda row: row["tf_chisq"] * -1 if row["expected_tf"] > row["tf_class"] else row["tf_chisq"], axis=1)
         df['tf_chisq_x'] = df.apply(lambda row:math.log2(row["tf_class"]) * row["tf_chisq_pn"], axis=1) #custome adjust on df_chisq value
         df = df.sort_values(by=["tf_chisq_x"], ascending=False)
+        return(df.head(size))
 
     for c, df in classes_df.items():
         class_df_merged = pd.merge(df, all_df, left_index=True, right_index=True, suffixes=['_class', '_all'], how='left')
