@@ -10,8 +10,8 @@ from itertools import islice
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 document_dir = os.path.join(base_dir, "IRTM")
-dictionary_file = os.path.join(os.path.dirname(__file__),'dictionary_x.xlsx')
-result_file = os.path.join(os.path.dirname(__file__), 'result_x.csv')
+dictionary_file = os.path.join(os.path.dirname(__file__),'dictionary_x2.xlsx')
+result_file = os.path.join(os.path.dirname(__file__), 'result_x2.csv')
 
 def load_dictionary(inputFile = dictionary_file) -> tuple:
     """load the dictionary.xlsx into the input format of NB_classifier"""
