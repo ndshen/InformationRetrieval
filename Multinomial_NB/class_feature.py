@@ -18,8 +18,8 @@ base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 document_dir = os.path.join(base_dir, "IRTM")
 training_input = os.path.join(os.path.dirname(__file__), "training.txt")
 tf_df_file = os.path.join(os.path.dirname(__file__),'tf_df.xlsx')
-feature_file =  os.path.join(os.path.dirname(__file__),'class_feature.xlsx')
-dictionary_file = os.path.join(os.path.dirname(__file__),'dictionary.xlsx')
+feature_file =  os.path.join(os.path.dirname(__file__),'class_feature_x.xlsx')
+dictionary_file = os.path.join(os.path.dirname(__file__),'dictionary_x.xlsx')
 
 def fetch_document(id:int) -> str:
     with open(os.path.join(document_dir, "{}.txt".format(id)), "r") as f:
@@ -144,7 +144,7 @@ def feature_select(all_df, classes_df:dict, classes_docs:dict, size=500, method=
         df["expected_df"] = round(df["df_all"] * (class_d/total_d), 3)
         df["df_chisq"] = round(pow(df["df_class"] - df["expected_df"], 2)/df["expected_df"], 3)
         df['df_chisq_pn'] = df.apply(lambda row: row["df_chisq"] * -1 if row["expected_df"] > row["df_class"] else row["df_chisq"], axis=1)
-        df['df_chisq_x'] = df.apply(lambda row:math.log2(row["df_class"]) * row["df_chisq_pn"], axis=1) #custome adjust on df_chisq value
+        df['df_chisq_x'] = df.apply(lambda row:math.log2(row["df_class"] + 1) * row["df_chisq_pn"], axis=1) #custome adjust on df_chisq value
         df = df.sort_values(by=["df_chisq_x"], ascending=False)
         return(df.head(size))
 
@@ -188,7 +188,7 @@ def construct_dictionary(classes_df:dict, classes_docs:dict, size=500, outputFil
     
     dictionary = select_terms_strict()
     for c, df in classes_df.items():
-        c_dict_merged = pd.merge(dictionary, df[["tf_class", "df_class"]], left_index=True, right_index=True, how="left")
+        c_dict_merged = pd.merge(dictionary, df[["tf_class", "df_class", "df_chisq_x"]], left_index=True, right_index=True, how="left")
         c_dict_merged = c_dict_merged.fillna(0).sort_values(by=["tf_class"], ascending=False)
         tf_sum = c_dict_merged["tf_class"].sum()
         c_dict_merged["prob"] = c_dict_merged.apply(lambda row:(row["tf_class"]+1)/(tf_sum+size), axis=1) #add-one smoothing
@@ -197,7 +197,7 @@ def construct_dictionary(classes_df:dict, classes_docs:dict, size=500, outputFil
     output_file.save()
 
 if __name__ == "__main__":
-    calculate_tf_df(get_training_classes())
+    # calculate_tf_df(get_training_classes())
     all_df, classes_df = load_tf_df_file()
     feature_select(all_df, classes_df, get_training_classes())
     construct_dictionary(load_class_feature_file(), get_training_classes())

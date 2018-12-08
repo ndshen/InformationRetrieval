@@ -10,8 +10,8 @@ from itertools import islice
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 document_dir = os.path.join(base_dir, "IRTM")
-dictionary_file = os.path.join(os.path.dirname(__file__),'dictionary.xlsx')
-result_file = os.path.join(os.path.dirname(__file__), 'result.csv')
+dictionary_file = os.path.join(os.path.dirname(__file__),'dictionary_x.xlsx')
+result_file = os.path.join(os.path.dirname(__file__), 'result_x.csv')
 
 def load_dictionary(inputFile = dictionary_file) -> tuple:
     """load the dictionary.xlsx into the input format of NB_classifier"""
@@ -42,7 +42,8 @@ def NB_classifer(doc:str, dictionary:set, classes_df:dict, classes_docs:dict) ->
     for token in token_list:
         if token in dictionary:
             for c, df in classes_df.items():
-                c_value[c] += math.log(df.loc[token, "prob"])
+                if df.loc[token, "df_chisq_x"] != 0:
+                    c_value[c] += math.log(df.loc[token, "df_chisq_x"])
 
     return(max(c_value, key= lambda k: c_value[k]))
 
