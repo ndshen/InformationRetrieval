@@ -18,8 +18,8 @@ base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 document_dir = os.path.join(base_dir, "IRTM")
 training_input = os.path.join(os.path.dirname(__file__), "training.txt")
 tf_df_file = os.path.join(os.path.dirname(__file__),'tf_df.xlsx')
-feature_file =  os.path.join(os.path.dirname(__file__),'class_feature.xlsx')
-dictionary_file = os.path.join(os.path.dirname(__file__),'dictionary.xlsx')
+feature_file =  os.path.join(os.path.dirname(__file__),'class_feature_eq.xlsx')
+dictionary_file = os.path.join(os.path.dirname(__file__),'dictionary_eq.xlsx')
 
 def fetch_document(id) -> str:
     with open(os.path.join(document_dir, "{}.txt".format(id)), "r") as f:
@@ -144,7 +144,7 @@ def feature_select(all_df, classes_df:dict, classes_docs:dict, size=500, method=
         df["expected_df"] = round(df["df_all"] * (class_d/total_d), 3)
         df["df_chisq"] = round(pow(df["df_class"] - df["expected_df"], 2)/df["expected_df"], 3)
         df['df_chisq_pn'] = df.apply(lambda row: row["df_chisq"] * -1 if row["expected_df"] > row["df_class"] else row["df_chisq"], axis=1)
-        df['df_chisq_x'] = df.apply(lambda row:math.log2(row["df_class"]) * row["df_chisq_pn"], axis=1) #custome adjust on df_chisq value
+        df['df_chisq_x'] = df.apply(lambda row:math.log2(row["tf_class"]+1) * row["df_chisq_pn"], axis=1) #custome adjust on df_chisq value
         df = df.sort_values(by=["df_chisq_x"], ascending=False)
         return(df.head(size))
 
@@ -153,7 +153,7 @@ def feature_select(all_df, classes_df:dict, classes_docs:dict, size=500, method=
         df["expected_tf"] = round(df["tf_all"]*(class_d/total_d), 3)
         df["tf_chisq"] = round(pow(df["tf_class"] - df["expected_tf"], 2)/df["expected_tf"], 3)
         df['tf_chisq_pn'] = df.apply(lambda row: row["tf_chisq"] * -1 if row["expected_tf"] > row["tf_class"] else row["tf_chisq"], axis=1)
-        df['tf_chisq_x'] = df.apply(lambda row:math.log2(row["tf_class"]) * row["tf_chisq_pn"], axis=1) #custome adjust on df_chisq value
+        df['tf_chisq_x'] = df.apply(lambda row:math.log2(row["tf_class"]+1) * row["tf_chisq_pn"], axis=1) #custome adjust on df_chisq value
         df = df.sort_values(by=["tf_chisq_x"], ascending=False)
         return(df.head(size))
 
@@ -195,10 +195,18 @@ def construct_dictionary(classes_df:dict, classes_docs:dict, size=500, outputFil
         dictionary = whole_pd[["tf_all", "df_all"]].head(size)
         return(dictionary)
     
-    dictionary = select_terms_strict()
+    def select_terms_equal():
+        """select 500 terms equally from each class"""
+        class_num = len(classes_docs) #each class should have 500/class_num term in dictionary
+        dictionary = pd.concat([df.head(40) for c, df in classes_df.items()], axis=0)
+        dictionary = dictionary[~dictionary.index.duplicated(keep='first')]
+        dictionary = dictionary[["tf_all", "df_all"]]
+        return(dictionary)
+    
+    dictionary = select_terms_equal()
     for c, df in classes_df.items():
-        c_dict_merged = pd.merge(dictionary, df[["tf_class", "df_class"]], left_index=True, right_index=True, how="left")
-        c_dict_merged = c_dict_merged.fillna(0).sort_values(by=["tf_class"], ascending=False)
+        c_dict_merged = pd.merge(dictionary, df[["tf_class", "df_class", "df_chisq_x"]], left_index=True, right_index=True, how="left")
+        c_dict_merged = c_dict_merged.fillna(0).sort_values(by=["df_chisq_x"], ascending=False)
         tf_sum = c_dict_merged["tf_class"].sum()
         c_dict_merged["prob"] = c_dict_merged.apply(lambda row:(row["tf_class"]+1)/(tf_sum+size), axis=1) #add-one smoothing
         c_dict_merged.to_excel(output_file, c)
@@ -206,7 +214,7 @@ def construct_dictionary(classes_df:dict, classes_docs:dict, size=500, outputFil
     output_file.save()
 
 if __name__ == "__main__":
-    calculate_tf_df(get_training_classes())
-    all_df, classes_df = load_tf_df_file()
-    feature_select(all_df, classes_df, get_training_classes())
+    # calculate_tf_df(get_training_classes())
+    # all_df, classes_df = load_tf_df_file()
+    # feature_select(all_df, classes_df, get_training_classes(), method="df_chisq")
     construct_dictionary(load_class_feature_file(), get_training_classes())
