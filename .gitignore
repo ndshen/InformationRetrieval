@@ -108,3 +108,4 @@ IRTM/
 *.csv
 *.xlsx
 Multinomial_NB/*.txt
+training/
