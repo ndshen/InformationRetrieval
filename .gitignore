@@ -109,3 +109,4 @@ IRTM/
 *.xlsx
 Multinomial_NB/*.txt
 training/
+docVector/
