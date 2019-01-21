@@ -110,3 +110,6 @@ IRTM/
 Multinomial_NB/*.txt
 training/
 docVector/
+
+# ignore model
+*.joblib
